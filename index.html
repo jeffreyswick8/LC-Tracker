@@ -727,7 +727,7 @@
       </div>
       <div class="brand-txt">
         <h1>SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v27 · xlsx export</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v28 · export fix</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1289,10 +1289,15 @@
     const bytes = buildXlsx(dh+' Status', rows, 2); // status is column index 2
     const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const ts = stamp.getFullYear()+String(stamp.getMonth()+1).padStart(2,'0')+String(stamp.getDate()).padStart(2,'0')+'_'+String(stamp.getHours()).padStart(2,'0')+String(stamp.getMinutes()).padStart(2,'0');
+    const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
+    a.href=url;
     a.download='SBN207_'+dh+'_LiquidCooling_Status_'+ts+'.xlsx';
-    a.click(); URL.revokeObjectURL(a.href);
+    a.rel='noopener'; a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    // revoke LATER so the download can start (immediate revoke makes some browsers open a tab)
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 4000);
     toast(dh+' status exported to Excel');
   }
   // wire the export button (added to DH overlay head)
