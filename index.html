@@ -746,7 +746,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v32 · sw guard</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v33 · toggle fix</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -982,22 +982,25 @@
 
   // ---- BUILDING TOGGLE (207 <-> 202) ----
   window.LC_BUILDING = (function(){ try{return localStorage.getItem('sbn_active_building')||'207';}catch(e){return '207';} })();
-  function applyBuilding(b){
+  function setBuildingLabel(b){
     window.LC_BUILDING = b;
     try{ localStorage.setItem('sbn_active_building', b); }catch(e){}
     const t=document.getElementById('site-title'); if(t) t.textContent='SBN'+b;
     const badge=document.getElementById('bldg-badge'); if(badge) badge.textContent=b;
     document.title='SBN'+b+' — Site Overview';
-    // close any open overlays so we never show another building's stale view
-    if(typeof closeSection==='function') closeSection();
-    if(typeof closeEroom==='function') closeEroom();
-    if(typeof closeHall==='function') closeHall();
-    if(typeof toast==='function') toast('Switched to Building '+b);
   }
-  applyBuilding(window.LC_BUILDING); // set initial label from saved choice
+  function switchBuilding(b){
+    setBuildingLabel(b);
+    // close any open overlays so we never show another building's stale view
+    try{ if(typeof closeSection==='function') closeSection(); }catch(e){}
+    try{ if(typeof closeEroom==='function') closeEroom(); }catch(e){}
+    try{ if(typeof closeHall==='function') closeHall(); }catch(e){}
+    try{ if(typeof toast==='function') toast('Switched to Building '+b); }catch(e){}
+  }
+  setBuildingLabel(window.LC_BUILDING); // init: label ONLY (no overlay close — nothing open yet, avoids TDZ error)
   var _bt=document.getElementById('bldg-toggle');
   if(_bt) _bt.addEventListener('click', function(){
-    applyBuilding(window.LC_BUILDING==='207' ? '202' : '207');
+    switchBuilding(window.LC_BUILDING==='207' ? '202' : '207');
   });
 
   // home DH cards
