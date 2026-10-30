@@ -746,7 +746,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v33 · toggle fix</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v34 · sw sandbox-skip</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1396,15 +1396,20 @@
   items.forEach((el,i)=>setTimeout(()=>el.classList.add('in'),80+i*70));
 </script>
 <script>
-  // Register the service worker ONLY on a real http(s) origin.
-  // (Sandboxed preview iframes block SW registration and report a phantom error.)
-  try {
-    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')) {
-      window.addEventListener('load', function(){
-        navigator.serviceWorker.register('./sw.js').catch(function(e){ console.warn('SW registration skipped', e); });
-      });
-    }
-  } catch(e) { /* no-op: preview/sandbox has no SW */ }
+  // Register the service worker ONLY on a real same-origin http(s) page.
+  // Sandboxed preview iframes (open_in_session_tab) block SW registration and
+  // report a phantom error at a line beyond the file; skip entirely there.
+  (function(){
+    var sandboxed = false;
+    try { if (window.origin === 'null' || window.origin === null) sandboxed = true; } catch(e) { sandboxed = true; }
+    var realOrigin = (location.protocol === 'https:' || location.protocol === 'http:');
+    if (sandboxed || !realOrigin || !('serviceWorker' in navigator)) return;  // preview/sandbox: skip
+    window.addEventListener('load', function(){
+      try {
+        navigator.serviceWorker.register('./sw.js').catch(function(e){ /* offline cache optional */ });
+      } catch(e) { /* no-op */ }
+    });
+  })();
   // global error surfacing (per tablet best practice) — non-intrusive console log
   window.onerror = function(msg,src,ln,col,err){ console.error('App error:', msg, 'at', src+':'+ln); };
 </script>
