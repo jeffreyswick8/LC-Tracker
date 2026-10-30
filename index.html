@@ -428,6 +428,17 @@
     .er-grid{grid-template-columns:1fr;max-width:560px;}
   }
 
+  /* ===================== DH EXPORT BUTTON ===================== */
+  .dh-head-actions{display:flex;align-items:center;gap:12px;}
+  .export-btn{display:flex;align-items:center;gap:9px;cursor:pointer;min-height:48px;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#5eead4;
+    padding:11px 18px;border-radius:9px;border:1px solid rgba(94,234,212,0.45);
+    background:linear-gradient(155deg,rgba(16,185,129,0.14),rgba(13,27,46,0.85));
+    transition:all .16s ease;-webkit-user-select:none;user-select:none;touch-action:manipulation;}
+  .export-btn:hover{color:#bdf3ff;border-color:#5eead4;box-shadow:0 0 18px rgba(94,234,212,0.3);transform:translateY(-1px);}
+  .export-btn svg{width:16px;height:16px;}
+  @media(max-width:1024px){ .dh-head-actions{flex-direction:column;align-items:stretch;} }
+
   @media(max-width:1100px){
     .halls,.site{grid-template-columns:1fr 110px 1fr;}
     .tile .code{font-size:16px;}
@@ -716,7 +727,7 @@
       </div>
       <div class="brand-txt">
         <h1>SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v26 · tablet</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v27 · xlsx export</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -836,10 +847,16 @@
             <div class="sub" id="dh-sub">Units &amp; Electrical Rooms</div>
           </div>
         </div>
-        <button class="back-btn" id="dh-back-btn" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-          Back to Site
-        </button>
+        <div class="dh-head-actions">
+          <button class="export-btn" id="dh-export-btn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export to Excel
+          </button>
+          <button class="back-btn" id="dh-back-btn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back to Site
+          </button>
+        </div>
       </div>
       <div class="ov-divider"></div>
 
@@ -1128,6 +1145,159 @@
     };
     rd.readAsText(f);
   });
+
+
+  // ================= EXPORT DH STATUS TO EXCEL (.xlsx) =================
+  // Minimal self-contained XLSX writer: builds a real .xlsx (zip of XML) with styled headers.
+  // No external library, works fully offline.
+
+  // ---- tiny ZIP (store, no compression) with correct CRC32 ----
+  const _crcTable=(function(){const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+  function _crc32(bytes){let c=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)c=_crcTable[(c^bytes[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+  function _str2bytes(s){const out=[];for(let i=0;i<s.length;i++){let cc=s.charCodeAt(i);if(cc<128)out.push(cc);else if(cc<2048){out.push(192|(cc>>6),128|(cc&63));}else{out.push(224|(cc>>12),128|((cc>>6)&63),128|(cc&63));}}return out;}
+  function _zip(files){ // files: [{name, data(string)}]
+    const chunks=[], central=[]; let offset=0;
+    function u16(n){return [n&0xFF,(n>>8)&0xFF];}
+    function u32(n){return [n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF];}
+    files.forEach(f=>{
+      const data=_str2bytes(f.data), name=_str2bytes(f.name), crc=_crc32(data);
+      const local=[].concat(u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),name,data);
+      central.push([].concat(u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),name));
+      chunks.push(local); offset+=local.length;
+    });
+    const cstart=offset; let csize=0; central.forEach(c=>{chunks.push(c);csize+=c.length;offset+=c.length;});
+    chunks.push([].concat(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(csize),u32(cstart),u16(0)));
+    const all=[].concat.apply([],chunks);
+    return new Uint8Array(all);
+  }
+  function _xmlEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+  // ---- build an .xlsx from a 2D array of rows; row 0 = headers; statusCol highlights PRESENT/MISSING ----
+  function buildXlsx(sheetName, rows, statusColIdx){
+    // styles: 0 default, 1 header, 2 title, 3 present(green), 4 missing(red)
+    const styles =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+      '<fonts count="4">'+
+        '<font><sz val="11"/><name val="Calibri"/></font>'+
+        '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'+
+        '<font><b/><sz val="14"/><color rgb="FF0E7490"/><name val="Calibri"/></font>'+
+        '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'+
+      '</fonts>'+
+      '<fills count="5">'+
+        '<fill><patternFill patternType="none"/></fill>'+
+        '<fill><patternFill patternType="gray125"/></fill>'+
+        '<fill><patternFill patternType="solid"><fgColor rgb="FF0E7490"/></patternFill></fill>'+   
+        '<fill><patternFill patternType="solid"><fgColor rgb="FF16A34A"/></patternFill></fill>'+   
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFDC2626"/></patternFill></fill>'+   
+      '</fills>'+
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'+
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+      '<cellXfs count="5">'+
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+                          
+        '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="left"/></xf>'+ 
+        '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+            
+        '<xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="center"/></xf>'+ 
+        '<xf numFmtId="0" fontId="3" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="center"/></xf>'+ 
+      '</cellXfs>'+
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'+
+      '</styleSheet>';
+
+    function colLetter(n){let s='';n++;while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
+    let sheetRows='';
+    rows.forEach((row,ri)=>{
+      let cells='';
+      row.forEach((val,ci)=>{
+        const ref=colLetter(ci)+(ri+1);
+        let s=0;
+        if(ri===0) s=1; // header row
+        else if(ci===statusColIdx){ s = (String(val).toUpperCase()==='PRESENT')?3:4; }
+        cells+='<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+_xmlEsc(val)+'</t></is></c>';
+      });
+      sheetRows+='<row r="'+(ri+1)+'">'+cells+'</row>';
+    });
+    // column widths
+    const ncols = rows.length?rows[0].length:1;
+    let cols='<cols>';
+    const widths=[16,14,30,14,22];
+    for(let i=0;i<ncols;i++) cols+='<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+(widths[i]||18)+'" customWidth="1"/>';
+    cols+='</cols>';
+    const sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+      '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
+      cols+'<sheetData>'+sheetRows+'</sheetData></worksheet>';
+
+    const safeName=_xmlEsc(sheetName).slice(0,31);
+    const wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+      '<sheets><sheet name="'+safeName+'" sheetId="1" r:id="rId1"/></sheets></workbook>';
+    const wbRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
+      '</Relationships>';
+    const contentTypes='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+      '<Default Extension="xml" ContentType="application/xml"/>'+
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+
+      '</Types>';
+    const rootRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'+
+      '</Relationships>';
+    return _zip([
+      {name:'[Content_Types].xml', data:contentTypes},
+      {name:'_rels/.rels', data:rootRels},
+      {name:'xl/workbook.xml', data:wb},
+      {name:'xl/_rels/workbook.xml.rels', data:wbRels},
+      {name:'xl/styles.xml', data:styles},
+      {name:'xl/worksheets/sheet1.xml', data:sheet},
+    ]);
+  }
+
+  // ---- gather a DH snapshot into rows ----
+  function gatherDHRows(dh){
+    const H=HALLS[dh]; const lc=window.SBN207Hall.loadState(); const er=erLoad();
+    const TYPES=window.SBN207Hall.TYPES, mani=window.SBN207Hall.buildManifest;
+    const stamp=new Date();
+    const rows=[['Location','Equipment','Status','Row','Snapshot']];
+    const stampStr=stamp.toLocaleString();
+    // units -> liquid cooling manifest
+    H.units.forEach(u=>{
+      mani(u).forEach(it=>{
+        const label=(TYPES[it.type]?TYPES[it.type].label:it.type);
+        const status = lc[it.id] ? 'PRESENT' : 'MISSING';
+        const rowLabel = it.row>0 ? ('Row '+it.row) : 'Shared';
+        rows.push([u, label, status, rowLabel, stampStr]);
+      });
+    });
+    // electrical rooms -> MSDBs
+    H.erooms.forEach(rm=>{
+      eroomEquip(rm).forEach(eq=>{
+        const status = er[rm+'-'+eq.key] ? 'PRESENT' : 'MISSING';
+        rows.push([rm, eq.name, status, 'Electrical Room', stampStr]);
+      });
+    });
+    return {rows, stamp};
+  }
+
+  function exportDH(dh){
+    const {rows, stamp} = gatherDHRows(dh);
+    const bytes = buildXlsx(dh+' Status', rows, 2); // status is column index 2
+    const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const ts = stamp.getFullYear()+String(stamp.getMonth()+1).padStart(2,'0')+String(stamp.getDate()).padStart(2,'0')+'_'+String(stamp.getHours()).padStart(2,'0')+String(stamp.getMinutes()).padStart(2,'0');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='SBN207_'+dh+'_LiquidCooling_Status_'+ts+'.xlsx';
+    a.click(); URL.revokeObjectURL(a.href);
+    toast(dh+' status exported to Excel');
+  }
+  // wire the export button (added to DH overlay head)
+  var _exp=document.getElementById('dh-export-btn');
+  if(_exp) _exp.addEventListener('click', ()=>{ const dh=dhOverlay.dataset.dh; if(dh) exportDH(dh); });
 
   document.addEventListener('click',e=>{
     const el=e.target.closest('[data-sec]');
