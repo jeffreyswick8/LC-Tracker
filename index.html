@@ -446,6 +446,16 @@
   .er-lineup-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;max-width:860px;margin:0 auto;}
   @media(max-width:1024px){ .er-lineup-row{grid-template-columns:1fr;} }
 
+  /* ===================== BUILDING TOGGLE ===================== */
+  .logo-mark{position:relative;cursor:pointer;border:1px solid var(--border-strong);
+    background:linear-gradient(145deg,var(--panel-2),var(--panel));padding:0;
+    transition:all .16s ease;-webkit-user-select:none;user-select:none;touch-action:manipulation;}
+  .logo-mark:hover{box-shadow:0 0 18px var(--cyan-faint);transform:translateY(-1px);border-color:var(--cyan);}
+  .logo-mark:active{transform:scale(.96);}
+  .bldg-badge{position:absolute;bottom:-7px;right:-7px;font-family:var(--mono);font-size:10px;font-weight:700;
+    color:#06202b;background:linear-gradient(155deg,#5eead4,#22d3ee);border-radius:7px;padding:1px 5px;
+    box-shadow:0 0 10px var(--cyan-glow);letter-spacing:.02em;}
+
   @media(max-width:1100px){
     .halls,.site{grid-template-columns:1fr 110px 1fr;}
     .tile .code{font-size:16px;}
@@ -478,9 +488,10 @@
   const SFN_PARTS=[]; // collapsed to single SFN
   const EQUIP=['FCU','FCU','FCU','PU','WDC'];
 
-  const STORAGE_KEY='sbn207_lc_inventory_v2';
-  function loadState(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{};}catch(e){return{};}}
-  function saveState(s){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(s));}catch(e){}}
+  function _bldg(){ return (global.LC_BUILDING||'207'); }
+  function _lcKey(){ return 'sbn'+_bldg()+'_lc_inventory_v2'; }
+  function loadState(){try{return JSON.parse(localStorage.getItem(_lcKey()))||{};}catch(e){return{};}}
+  function saveState(s){try{localStorage.setItem(_lcKey(),JSON.stringify(s));}catch(e){}}
 
   function buildManifest(u){
     const cfg=unitConfig(u),list=[];
@@ -712,7 +723,7 @@
 
   function exportState(){return JSON.stringify(loadState(),null,2);}
   function importState(j){try{saveState(JSON.parse(j));return true;}catch(e){return false;}}
-  function wipeState(){try{localStorage.removeItem(STORAGE_KEY);}catch(e){}}
+  function wipeState(){try{localStorage.removeItem(_lcKey());}catch(e){}}
 
   global.SBN207Hall={Hall:Hall,unitConfig:unitConfig,rowsForUnit:rowsForUnit,FIVE_ROW_UNITS:FIVE_ROW_UNITS,TYPES:TYPES,buildManifest:buildManifest,exportState:exportState,importState:importState,loadState:loadState,saveState:saveState,wipeState:wipeState};
 })(window);
@@ -724,17 +735,18 @@
   <!-- TITLE FIRST (streaming-friendly) -->
   <div class="topbar">
     <div class="brand">
-      <div class="logo-mark">
+      <button class="logo-mark" id="bldg-toggle" type="button" title="Switch building (207 / 202)" aria-label="Switch building">
         <svg viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="1.8">
           <rect x="3" y="4" width="18" height="6" rx="1.4"/>
           <rect x="3" y="14" width="18" height="6" rx="1.4"/>
           <circle cx="7" cy="7" r="1" fill="#5eead4"/>
           <circle cx="7" cy="17" r="1" fill="#5eead4"/>
         </svg>
-      </div>
+        <span class="bldg-badge" id="bldg-badge">207</span>
+      </button>
       <div class="brand-txt">
-        <h1>SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v30 · lineup fix</span></div>
+        <h1 id="site-title">SBN207</h1>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v31 · bldg toggle</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -938,9 +950,9 @@
     Object.keys(g).forEach(lin=>g[lin].forEach(it=>out.push({key:it.key,name:it.name,lineup:lin})));
     return out;
   }
-  const ER_STORE = 'sbn207_eroom_v1';
-  function erLoad(){ try{return JSON.parse(localStorage.getItem(ER_STORE))||{};}catch(e){return{};} }
-  function erSave(s){ try{localStorage.setItem(ER_STORE,JSON.stringify(s));}catch(e){} }
+  function erKey(){ return 'sbn'+(window.LC_BUILDING||'207')+'_eroom_v1'; }
+  function erLoad(){ try{return JSON.parse(localStorage.getItem(erKey()))||{};}catch(e){return{};} }
+  function erSave(s){ try{localStorage.setItem(erKey(),JSON.stringify(s));}catch(e){} }
 
   const dhOverlay = document.getElementById('dh-overlay');
   const erOverlay = document.getElementById('er-overlay');
@@ -967,6 +979,26 @@
   }
   function closeHall(){ dhOverlay.classList.remove('open'); dhOverlay.setAttribute('aria-hidden','true'); }
   document.getElementById('dh-back-btn').addEventListener('click', closeHall);
+
+  // ---- BUILDING TOGGLE (207 <-> 202) ----
+  window.LC_BUILDING = (function(){ try{return localStorage.getItem('sbn_active_building')||'207';}catch(e){return '207';} })();
+  function applyBuilding(b){
+    window.LC_BUILDING = b;
+    try{ localStorage.setItem('sbn_active_building', b); }catch(e){}
+    const t=document.getElementById('site-title'); if(t) t.textContent='SBN'+b;
+    const badge=document.getElementById('bldg-badge'); if(badge) badge.textContent=b;
+    document.title='SBN'+b+' — Site Overview';
+    // close any open overlays so we never show another building's stale view
+    if(typeof closeSection==='function') closeSection();
+    if(typeof closeEroom==='function') closeEroom();
+    if(typeof closeHall==='function') closeHall();
+    if(typeof toast==='function') toast('Switched to Building '+b);
+  }
+  applyBuilding(window.LC_BUILDING); // set initial label from saved choice
+  var _bt=document.getElementById('bldg-toggle');
+  if(_bt) _bt.addEventListener('click', function(){
+    applyBuilding(window.LC_BUILDING==='207' ? '202' : '207');
+  });
 
   // home DH cards
   document.querySelectorAll('.dh-card').forEach(c=>c.addEventListener('click',()=>openHall(c.dataset.dh)));
@@ -1330,7 +1362,7 @@
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download='SBN207_'+dh+'_LiquidCooling_Status_'+ts+'.xlsx';
+    a.download='SBN'+(window.LC_BUILDING||'207')+'_'+dh+'_LiquidCooling_Status_'+ts+'.xlsx';
     a.rel='noopener'; a.style.display='none';
     document.body.appendChild(a);
     a.click();
