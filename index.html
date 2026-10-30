@@ -538,8 +538,8 @@
           list.push({id:u+'-R'+r+'-NET',type:'NET',row:r,slot:0});  // network row marker (not LC)
         } else { // irhx row
           irhxRow(r);
-          if(rowCfg.catcher==='PU') list.push({id:u+'-R'+r+'-CATPU',type:'CAT_PU',row:r,slot:0});
-          if(rowCfg.catcher==='FCU') list.push({id:u+'-R'+r+'-CATFCU',type:'CAT_FCU',row:r,slot:0});
+          if(rowCfg.catcher==='PU') list.push({id:u+'-R'+r+'-CAT_PU',type:'CAT_PU',row:r,slot:0});
+          if(rowCfg.catcher==='FCU') list.push({id:u+'-R'+r+'-CAT_FCU',type:'CAT_FCU',row:r,slot:0});
         }
       });
       // custom ROMPs do NOT get the shared LCMP/standalone CATCHER block (catcher is embedded)
@@ -605,8 +605,14 @@
 
     for(let i=0;i<nRows;i++){
       const r=i+1, y0 = topRows + i*(ROWH+ROWGAP);
-      if(rowKinds[i].net) this._buildNetworkRow(svg, r, y0, ROWH, sfnColX, rowRight);
-      else this._buildRow(svg, r, y0, ROWH, xs, eqBoxW, sfnColX, rowRight, rowKinds[i].catcher);
+      try {
+        if(rowKinds[i].net) this._buildNetworkRow(svg, r, y0, ROWH, sfnColX, rowRight);
+        else this._buildRow(svg, r, y0, ROWH, xs, eqBoxW, sfnColX, rowRight, rowKinds[i].catcher);
+      } catch(rowErr){
+        var t=el('text',{x:60,y:y0+90,fill:'#fca5a5','font-family':'Consolas,monospace','font-size':14},svg);
+        t.textContent='ROW '+r+' ERROR: '+(rowErr&&rowErr.message?rowErr.message:rowErr);
+        try{ console.error('Row '+r+' build error:', rowErr); }catch(_){}
+      }
     }
 
     const self=this;
@@ -662,9 +668,9 @@
       lbl.textContent='SUPPORT';
       let items=[['RMJB','RMJB'],['PPS3','3PPS'],['EXPTANK','EXP TANK'],['LEAK','LEAK DET']];
       // embedded catcher piece for this row (ROMP-specific): CAT_PU or CAT_FCU
-      if(catcher==='PU') items.push(['CATPU','CAT_PU']);
-      else if(catcher==='FCU') items.push(['CATFCU','CAT_FCU']);
-      items.forEach((it,i)=>{ this._box(svg, U+'-R'+r+'-'+it[0], it[1], supX+i*(sw+sgap), supY, sw, sh); });
+      if(catcher==='PU') items.push(['CAT_PU','CAT_PU']);
+      else if(catcher==='FCU') items.push(['CAT_FCU','CAT_FCU']);
+      items.forEach((it,i)=>{ this._box(svg, U+'-R'+r+'-'+it[0], it[0], supX+i*(sw+sgap), supY, sw, sh); });
     })();
 
     // ---- SFN: ONE clickable piping network for the whole row (toggles together) ----
@@ -821,7 +827,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v35 · ROMP layouts</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v38 · box type fix</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1247,7 +1253,13 @@
     overlay.classList.add('open'); overlay.setAttribute('aria-hidden','false');
 
     if(hall){ hall.dispose(); hall = null; }
-    hall = makeHall(id);
+    try {
+      hall = makeHall(id);
+    } catch(err){
+      var hc=document.getElementById('hall-canvas');
+      if(hc) hc.innerHTML='<div style="padding:30px;color:#fca5a5;font-family:Consolas,monospace;font-size:13px;white-space:pre-wrap;">Render error:\n'+(err&&err.message?err.message:err)+'\n\n'+((err&&err.stack)?err.stack:'').split('\n').slice(0,4).join('\n')+'</div>';
+      console.error('Hall render error:', err);
+    }
   }
   function closeSection(){
     overlay.classList.remove('open'); overlay.setAttribute('aria-hidden','true');
