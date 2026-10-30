@@ -502,6 +502,7 @@
     RMJB:{label:'RMJB',short:'RMJB',color:'#f472b6'},
     EXPTANK:{label:'Expansion Tank',short:'EXP TANK',color:'#a78bfa'},
     LEAK:{label:'Leak Detection',short:'LEAK DET',color:'#fb923c'},
+    LDM:{label:'LDM',short:'LDM',color:'#a3e635'},
     LCMP:{label:'LC Monitoring Panel',short:'LCMP',color:'#facc15'},
     PPS3:{label:'3PPS (3-Phase Power Shelf)',short:'3PPS',color:'#f87171'},
     CAT_PU:{label:'Catcher IRHX — Pump Unit',short:'CATCHER PU',color:'#fbbf24'},
@@ -529,6 +530,7 @@
       list.push({id:u+'-R'+r+'-EXPTANK',type:'EXPTANK',row:r,slot:0});
       list.push({id:u+'-R'+r+'-LEAK',type:'LEAK',row:r,slot:0});
       list.push({id:u+'-R'+r+'-PPS3',type:'PPS3',row:r,slot:0});
+      list.push({id:u+'-R'+r+'-LDM',type:'LDM',row:r,slot:0});
     }
     if(layout){
       // custom per-ROMP layout
@@ -584,7 +586,7 @@
 
     const PAD=50, ROWH=230, ROWGAP=30, LEFT=150;
     const eqBoxW=150, eqGap=10, eqGroupGap=64;
-    const W=1700;
+    const W=1860;
     const INFRA_H=120, INFRA_GAP=34;
     const topRows = PAD + (showInfra ? INFRA_H+INFRA_GAP : 0);
     const H = topRows + nRows*ROWH + (nRows-1)*ROWGAP + PAD;
@@ -599,7 +601,7 @@
     const xs=[]; let x=LEFT;
     for(let i=0;i<5;i++){ xs.push(x); x += eqBoxW + (i===2 ? eqGroupGap : eqGap); }
     const rowRight = xs[4]+eqBoxW;
-    const sfnColX = rowRight + 470;
+    const sfnColX = rowRight + 640;
 
     if(showInfra) this._buildInfra(svg, PAD, INFRA_H, W);
 
@@ -666,7 +668,7 @@
       const supX = rowRight + 16, supY = y0+30, sw=78, sh=ROWH-150, sgap=8;
       const lbl=el('text',{x:supX, y:supY-8, fill:'#7fa6bd','font-family':'Consolas,monospace','font-size':10,'letter-spacing':'1'},svg);
       lbl.textContent='SUPPORT';
-      let items=[['RMJB','RMJB'],['PPS3','3PPS'],['EXPTANK','EXP TANK'],['LEAK','LEAK DET']];
+      let items=[['RMJB','RMJB'],['PPS3','3PPS'],['EXPTANK','EXP TANK'],['LEAK','LEAK DET'],['LDM','LDM']];
       // embedded catcher piece for this row (ROMP-specific): CAT_PU or CAT_FCU
       if(catcher==='PU') items.push(['CAT_PU','CAT_PU']);
       else if(catcher==='FCU') items.push(['CAT_FCU','CAT_FCU']);
@@ -827,7 +829,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v38 · box type fix</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v39 · +LDM</span></div>
       </div>
     </div>
     <div class="status-cluster">
