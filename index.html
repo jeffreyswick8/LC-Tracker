@@ -746,7 +746,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v31 · bldg toggle</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v32 · sw guard</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1393,11 +1393,15 @@
   items.forEach((el,i)=>setTimeout(()=>el.classList.add('in'),80+i*70));
 </script>
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function(){
-      navigator.serviceWorker.register('./sw.js').catch(function(e){ console.warn('SW registration failed', e); });
-    });
-  }
+  // Register the service worker ONLY on a real http(s) origin.
+  // (Sandboxed preview iframes block SW registration and report a phantom error.)
+  try {
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')) {
+      window.addEventListener('load', function(){
+        navigator.serviceWorker.register('./sw.js').catch(function(e){ console.warn('SW registration skipped', e); });
+      });
+    }
+  } catch(e) { /* no-op: preview/sandbox has no SW */ }
   // global error surfacing (per tablet best practice) — non-intrusive console log
   window.onerror = function(msg,src,ln,col,err){ console.error('App error:', msg, 'at', src+':'+ln); };
 </script>
