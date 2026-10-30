@@ -481,17 +481,19 @@
   const ROMP_LAYOUTS = {
     // ROMP 1 (D1A1): all network racks, 0 LC equipment
     'D1A1':{ rows:[ {kind:'network'},{kind:'network'},{kind:'network'},{kind:'network'} ], noExtraMsdb:true },
-    // ROMP 2 (D2A1): rows 1-3 network; rows 4-7 one IRHX each + a catcher piece embedded
+    // ROMP 2 (D2A1): 3 network rows + 4 IRHX rows; catcher shown as a SEPARATE top block
     'D2A1':{ rows:[
       {kind:'network'},{kind:'network'},{kind:'network'},
-      {kind:'irhx', catcher:'PU'},
-      {kind:'irhx', catcher:'FCU'},
-      {kind:'irhx', catcher:'FCU'},
-      {kind:'irhx', catcher:'FCU'}
-    ] },
+      {kind:'irhx'},{kind:'irhx'},{kind:'irhx'},{kind:'irhx'}
+    ], catcherBlock:true },
+    // ROMP 3 (D1A2): 8 IRHX rows + SEPARATE catcher top block
+    'D1A2':{ rows:[
+      {kind:'irhx'},{kind:'irhx'},{kind:'irhx'},{kind:'irhx'},
+      {kind:'irhx'},{kind:'irhx'},{kind:'irhx'},{kind:'irhx'}
+    ], catcherBlock:true },
   };
   function rompLayout(u){ return ROMP_LAYOUTS[u] || null; }
-  function rowsForUnit(u){return FIVE_ROW_UNITS.indexOf(u)!==-1?5:4;}
+  function rowsForUnit(u){return 8;}  // standard ROMP = 8 IRHX rows
   function unitConfig(u){const m=u&&u.match(/^D([12])([AE])(\d)$/);return {name:'Unit '+u,hall:(m?('Data Hall '+m[1]):'Unit'),rows:rowsForUnit(u),catcher:0};}
 
   const TYPES={
@@ -538,18 +540,21 @@
         const r=i+1;
         if(rowCfg.kind==='network'){
           list.push({id:u+'-R'+r+'-NET',type:'NET',row:r,slot:0});  // network row marker (not LC)
-        } else { // irhx row
+        } else { // irhx row (standard equipment, no embedded catcher)
           irhxRow(r);
-          if(rowCfg.catcher==='PU') list.push({id:u+'-R'+r+'-CAT_PU',type:'CAT_PU',row:r,slot:0});
-          if(rowCfg.catcher==='FCU') list.push({id:u+'-R'+r+'-CAT_FCU',type:'CAT_FCU',row:r,slot:0});
         }
       });
-      // custom ROMPs do NOT get the shared LCMP/standalone CATCHER block (catcher is embedded)
-      // but still track the 2 LCMPs (monitoring) unless it's a network-only ROMP
       const anyIrhx = layout.rows.some(rc=>rc.kind==='irhx');
       if(anyIrhx){
         list.push({id:u+'-LCMP1',type:'LCMP',row:0,slot:0});
         list.push({id:u+'-LCMP2',type:'LCMP',row:0,slot:0});
+      }
+      // separate Catcher IRHX block: PU + FCU1 + FCU2 + FCU3 (tracked)
+      if(layout.catcherBlock){
+        list.push({id:u+'-CATB-PU',type:'CAT_PU',row:0,slot:0});
+        list.push({id:u+'-CATB-FCU1',type:'CAT_FCU',row:0,slot:0});
+        list.push({id:u+'-CATB-FCU2',type:'CAT_FCU',row:0,slot:0});
+        list.push({id:u+'-CATB-FCU3',type:'CAT_FCU',row:0,slot:0});
       }
       return list;
     }
@@ -582,13 +587,16 @@
     else { const cfg=unitConfig(U); rowKinds=[]; for(let i=0;i<cfg.rows;i++) rowKinds.push({net:false,catcher:null}); }
     const nRows=rowKinds.length;
     const hasLC = rowKinds.some(rk=>!rk.net);
-    const showInfra = !layout ? true : false; // custom ROMPs embed catcher; no standalone infra block
+    const showInfra = !layout ? true : false; // standard units show shared-infra strip
+    const hasCatcherBlock = !!(layout && layout.catcherBlock);
 
     const PAD=50, ROWH=230, ROWGAP=30, LEFT=150;
     const eqBoxW=150, eqGap=10, eqGroupGap=64;
     const W=1860;
     const INFRA_H=120, INFRA_GAP=34;
-    const topRows = PAD + (showInfra ? INFRA_H+INFRA_GAP : 0);
+    const CATCH_H=200, CATCH_GAP=34;
+    const topExtra = (showInfra ? INFRA_H+INFRA_GAP : 0) + (hasCatcherBlock ? CATCH_H+CATCH_GAP : 0);
+    const topRows = PAD + topExtra;
     const H = topRows + nRows*ROWH + (nRows-1)*ROWGAP + PAD;
     const svg=el('svg',{viewBox:'0 0 '+W+' '+H,width:'100%',height:'auto',preserveAspectRatio:'xMidYMid meet',style:'display:block;min-height:100%'},host);
     this.svg=svg;
@@ -604,6 +612,7 @@
     const sfnColX = rowRight + 640;
 
     if(showInfra) this._buildInfra(svg, PAD, INFRA_H, W);
+    if(hasCatcherBlock) this._buildCatcherBlock(svg, PAD + (showInfra?INFRA_H+INFRA_GAP:0), CATCH_H, xs);
 
     for(let i=0;i<nRows;i++){
       const r=i+1, y0 = topRows + i*(ROWH+ROWGAP);
@@ -649,6 +658,19 @@
     this._box(svg, U+'-LCMP2','LCMP', bx, by, bw, bh); bx+=bw+gap;
   };
 
+  // Separate "CATCHER IRHX" block (dashed container) with PU + FCU1 + FCU2 + FCU3
+  Hall.prototype._buildCatcherBlock=function(svg,y0,H,xs){
+    const U=this.unitKey;
+    const x0=xs[0]-10, x1=xs[4]+150+10, w=x1-x0;
+    // dashed container
+    el('rect',{x:x0,y:y0,width:w,height:H,rx:14,fill:'rgba(251,191,36,0.06)',stroke:'#fbbf24','stroke-width':2,'stroke-dasharray':'10 7'},svg);
+    el('text',{x:x0+16,y:y0+26,fill:'#fbbf24','font-family':'Consolas,monospace','font-size':15,'font-weight':'700','letter-spacing':'2'},svg).textContent='CATCHER IRHX';
+    // 4 pieces as boxes across the block
+    const bw=150, bh=H-70, by=y0+44;
+    const pieces=[['CATB-PU','CAT_PU'],['CATB-FCU1','CAT_FCU'],['CATB-FCU2','CAT_FCU'],['CATB-FCU3','CAT_FCU']];
+    pieces.forEach((pc,i)=>{ this._box(svg, U+'-'+pc[0], pc[1], xs[i], by, bw, bh); });
+  };
+
   Hall.prototype._buildRow=function(svg,r,y0,ROWH,xs,bw,sfnColX,rowRight,catcher){
     const U=this.unitKey;
     const midY=y0+ROWH*0.46;
@@ -657,11 +679,6 @@
     // row label
     const rl=el('text',{x:34,y:y0+26,fill:'#5eead4','font-family':'Consolas,monospace','font-size':20,'font-weight':'700','letter-spacing':'2'},svg);
     rl.textContent='ROW '+r;
-    if(catcher){
-      el('rect',{x:120,y:y0+11,width:150,height:22,rx:7,fill:'rgba(251,191,36,0.14)',stroke:'rgba(251,191,36,0.6)'},svg);
-      const cb=el('text',{x:195,y:y0+26,'text-anchor':'middle',fill:'#fbbf24','font-family':'Consolas,monospace','font-size':10,'font-weight':'700','letter-spacing':'1'},svg);
-      cb.textContent='+ CATCHER '+catcher;
-    }
 
     // ---- per-row SUPPORT equipment: RMJB, 3PPS, Expansion Tank, Leak Detection ----
     (()=>{
@@ -669,9 +686,6 @@
       const lbl=el('text',{x:supX, y:supY-8, fill:'#7fa6bd','font-family':'Consolas,monospace','font-size':10,'letter-spacing':'1'},svg);
       lbl.textContent='SUPPORT';
       let items=[['RMJB','RMJB'],['PPS3','3PPS'],['EXPTANK','EXP TANK'],['LEAK','LEAK DET'],['LDM','LDM']];
-      // embedded catcher piece for this row (ROMP-specific): CAT_PU or CAT_FCU
-      if(catcher==='PU') items.push(['CAT_PU','CAT_PU']);
-      else if(catcher==='FCU') items.push(['CAT_FCU','CAT_FCU']);
       items.forEach((it,i)=>{ this._box(svg, U+'-R'+r+'-'+it[0], it[0], supX+i*(sw+sgap), supY, sw, sh); });
     })();
 
@@ -829,7 +843,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v39 · +LDM</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v40 · 8rows+catcher block</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1508,4 +1522,4 @@
 </script>
 </body>
 </html>
-<!-- deploy-marker:v39.1-105220 -->
+<!-- deploy-marker:v40-110132 -->
