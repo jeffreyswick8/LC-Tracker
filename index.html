@@ -389,7 +389,7 @@
   .dh-tile.eroom .code{font-size:19px;}
 
   /* ===================== ELECTRICAL ROOM VERIFY ===================== */
-  .er-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:860px;margin:0 auto;}
+  .er-grid{display:block;max-width:900px;margin:0 auto;}
   .er-card{background:linear-gradient(160deg,rgba(13,27,46,0.75),rgba(10,20,36,0.5));
     border:1px solid var(--border);border-radius:18px;padding:30px;text-align:center;cursor:pointer;
     transition:all .18s ease;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
@@ -438,6 +438,13 @@
   .export-btn:hover{color:#bdf3ff;border-color:#5eead4;box-shadow:0 0 18px rgba(94,234,212,0.3);transform:translateY(-1px);}
   .export-btn svg{width:16px;height:16px;}
   @media(max-width:1024px){ .dh-head-actions{flex-direction:column;align-items:stretch;} }
+
+  /* ===================== E-ROOM LINEUP GROUPS ===================== */
+  .er-lineup{margin-bottom:26px;}
+  .er-lineup-label{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);font-weight:600;
+    margin:0 auto 14px;max-width:860px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  .er-lineup-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;max-width:860px;margin:0 auto;}
+  @media(max-width:1024px){ .er-lineup-row{grid-template-columns:1fr;} }
 
   @media(max-width:1100px){
     .halls,.site{grid-template-columns:1fr 110px 1fr;}
@@ -727,7 +734,7 @@
       </div>
       <div class="brand-txt">
         <h1>SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v28 · export fix</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v29 · lineups</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -902,14 +909,27 @@
     DH2:{ name:'Data Hall 2', units:['D2A1','D2A2','D2A3','D2A4','D2A5','D2A6'], erooms:['D2E1','D2E2','D2E3','D2E4','D2E5','D2E6'] },
   };
   // 2 pieces to verify in every electrical room (names are placeholders — easy to change)
-  const EROOM_EQUIP = [
-    { key:'MSDB4', name:'MSDB 4', icon:'\u26a1' },
-    { key:'MSDB5', name:'MSDB 5', icon:'\u26a1' },
-  ];
-  const MSDB6 = { key:'MSDB6', name:'MSDB 6', icon:'\u26a1' };
-  const SIX_MSDB_ROOMS = ['D1E1','D2E1'];   // Alpha lineup rooms with a 6th MSDB
-  function eroomEquip(code){
-    return SIX_MSDB_ROOMS.indexOf(code)!==-1 ? EROOM_EQUIP.concat([MSDB6]) : EROOM_EQUIP;
+  // Electrical-room MSDBs grouped by lineup (Alpha / Bravo).
+  // Each item: {key (unique in room), name, lineup}. Icon is fixed.
+  // Default rooms: Alpha MSDB 4 & 5 + Bravo MSDB 4 & 5.
+  // Exception D2E1: Alpha MSDB 4, 5, 6 only (legacy — keeps the 6th MSDB).
+  const MSDB_ICON='\u26a1';
+  function eroomGroups(code){
+    if(code==='D2E1'){
+      return { Alpha:[
+        {key:'A-MSDB4',name:'MSDB 4'},{key:'A-MSDB5',name:'MSDB 5'},{key:'A-MSDB6',name:'MSDB 6'}
+      ]};
+    }
+    return {
+      Alpha:[ {key:'A-MSDB4',name:'MSDB 4'}, {key:'A-MSDB5',name:'MSDB 5'} ],
+      Bravo:[ {key:'B-MSDB4',name:'MSDB 4'}, {key:'B-MSDB5',name:'MSDB 5'} ],
+    };
+  }
+  // flat list helper (for export): [{key,name,lineup}]
+  function eroomFlat(code){
+    const g=eroomGroups(code), out=[];
+    Object.keys(g).forEach(lin=>g[lin].forEach(it=>out.push({key:it.key,name:it.name,lineup:lin})));
+    return out;
   }
   const ER_STORE = 'sbn207_eroom_v1';
   function erLoad(){ try{return JSON.parse(localStorage.getItem(ER_STORE))||{};}catch(e){return{};} }
@@ -957,18 +977,29 @@
     document.getElementById('er-badge').textContent=code;
     document.getElementById('er-name').textContent='Electrical Room '+code;
     const grid=document.getElementById('er-grid'); grid.innerHTML='';
-    eroomEquip(code).forEach(eq=>{
-      const id=code+'-'+eq.key, present=!!st[id];
-      const card=document.createElement('div');
-      card.className='er-card'+(present?' present':''); card.dataset.id=id; card.dataset.eqname=eq.name;
-      card.innerHTML='<div class="er-ic">'+eq.icon+'</div><div class="er-nm">'+eq.name+'</div><div class="er-st">'+(present?'\u25cf PRESENT':'\u25cb MISSING')+'</div>';
-      grid.appendChild(card);
+    const groups=eroomGroups(code);
+    Object.keys(groups).forEach(lineup=>{
+      const sec=document.createElement('div'); sec.className='er-lineup';
+      const h=document.createElement('div'); h.className='er-lineup-label'; h.textContent=lineup+' Lineup';
+      sec.appendChild(h);
+      const row=document.createElement('div'); row.className='er-lineup-row';
+      groups[lineup].forEach(eq=>{
+        const id=code+'-'+eq.key, present=!!st[id];
+        const card=document.createElement('div');
+        card.className='er-card'+(present?' present':''); card.dataset.id=id; card.dataset.eqname=eq.name+' ('+lineup+')';
+        card.innerHTML='<div class="er-ic">'+MSDB_ICON+'</div><div class="er-nm">'+eq.name+'</div><div class="er-st">'+(present?'\u25cf PRESENT':'\u25cb MISSING')+'</div>';
+        row.appendChild(card);
+      });
+      sec.appendChild(row); grid.appendChild(sec);
     });
-    // Alpha-lineup note (only for rooms with a 6th MSDB)
+    // Note
     const noteEl=document.getElementById('er-note');
-    if(SIX_MSDB_ROOMS.indexOf(code)!==-1){
+    if(code==='D1E1'){
       noteEl.style.display='block';
-      noteEl.innerHTML='<strong>Note:</strong> Only the <strong>Alpha lineup</strong> will have the 6th MSDB (MSDB 6).';
+      noteEl.innerHTML='<strong>Note:</strong> MSDB 4 and MSDB 5 are on the <strong>Bravo</strong> lineup.';
+    } else if(code==='D2E1'){
+      noteEl.style.display='block';
+      noteEl.innerHTML='<strong>Note:</strong> Only the <strong>Alpha lineup</strong> — includes the 6th MSDB (MSDB 6).';
     } else {
       noteEl.style.display='none';
     }
@@ -1274,11 +1305,11 @@
         rows.push([u, label, status, rowLabel, stampStr]);
       });
     });
-    // electrical rooms -> MSDBs
+    // electrical rooms -> MSDBs (grouped by Alpha/Bravo lineup)
     H.erooms.forEach(rm=>{
-      eroomEquip(rm).forEach(eq=>{
+      eroomFlat(rm).forEach(eq=>{
         const status = er[rm+'-'+eq.key] ? 'PRESENT' : 'MISSING';
-        rows.push([rm, eq.name, status, 'Electrical Room', stampStr]);
+        rows.push([rm, eq.name+' ('+eq.lineup+')', status, 'Electrical Room', stampStr]);
       });
     });
     return {rows, stamp};
