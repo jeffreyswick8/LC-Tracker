@@ -470,6 +470,27 @@
   'use strict';
   const NS='http://www.w3.org/2000/svg';
   const FIVE_ROW_UNITS=['D1A1','D2A1'];
+  // ---- ROMP labels (each unit tile IS a ROMP) ----
+  const ROMP_OF = {
+    'D1A1':1,'D2A1':2,'D1A2':3,'D1A3':4,'D1A4':5,'D1A5':6,'D1A6':7,
+    'D2A2':8,'D2A3':9,'D2A4':10,'D2A5':11,'D2A6':12
+  };
+  function rompNum(u){ return ROMP_OF[u]||null; }
+  // ---- Per-ROMP custom layouts. Each row: {kind:'network'} or {kind:'irhx', catcher:null|'PU'|'FCU'} ----
+  // Units NOT in ROMP_LAYOUTS fall back to the standard uniform layout (rowsForUnit).
+  const ROMP_LAYOUTS = {
+    // ROMP 1 (D1A1): all network racks, 0 LC equipment
+    'D1A1':{ rows:[ {kind:'network'},{kind:'network'},{kind:'network'},{kind:'network'} ], noExtraMsdb:true },
+    // ROMP 2 (D2A1): rows 1-3 network; rows 4-7 one IRHX each + a catcher piece embedded
+    'D2A1':{ rows:[
+      {kind:'network'},{kind:'network'},{kind:'network'},
+      {kind:'irhx', catcher:'PU'},
+      {kind:'irhx', catcher:'FCU'},
+      {kind:'irhx', catcher:'FCU'},
+      {kind:'irhx', catcher:'FCU'}
+    ] },
+  };
+  function rompLayout(u){ return ROMP_LAYOUTS[u] || null; }
   function rowsForUnit(u){return FIVE_ROW_UNITS.indexOf(u)!==-1?5:4;}
   function unitConfig(u){const m=u&&u.match(/^D([12])([AE])(\d)$/);return {name:'Unit '+u,hall:(m?('Data Hall '+m[1]):'Unit'),rows:rowsForUnit(u),catcher:0};}
 
@@ -483,6 +504,9 @@
     LEAK:{label:'Leak Detection',short:'LEAK DET',color:'#fb923c'},
     LCMP:{label:'LC Monitoring Panel',short:'LCMP',color:'#facc15'},
     PPS3:{label:'3PPS (3-Phase Power Shelf)',short:'3PPS',color:'#f87171'},
+    CAT_PU:{label:'Catcher IRHX — Pump Unit',short:'CATCHER PU',color:'#fbbf24'},
+    CAT_FCU:{label:'Catcher IRHX — Fan Coil Unit',short:'CATCHER FCU',color:'#fbbf24'},
+    NET:{label:'Network Racks (no LC)',short:'NETWORK',color:'#64748b'},
     SFN:{label:'Secondary Fluid Network',short:'SFN',color:'#38bdf8',sfn:true},
   };
   const SFN_PARTS=[]; // collapsed to single SFN
@@ -494,19 +518,42 @@
   function saveState(s){try{localStorage.setItem(_lcKey(),JSON.stringify(s));}catch(e){}}
 
   function buildManifest(u){
-    const cfg=unitConfig(u),list=[];
-    for(let r=1;r<=cfg.rows;r++){
+    const list=[];
+    const layout=rompLayout(u);
+    function irhxRow(r){ // standard IRHX equipment for one row
       for(let f=1;f<=3;f++) list.push({id:u+'-R'+r+'-FCU'+f,type:'FCU',row:r,slot:f});
       list.push({id:u+'-R'+r+'-PU1',type:'PU',row:r,slot:4});
       list.push({id:u+'-R'+r+'-WDC1',type:'WDC',row:r,slot:5});
       list.push({id:u+'-R'+r+'-SFN',type:'SFN',row:r,slot:0});
-      // per-row support equipment
       list.push({id:u+'-R'+r+'-RMJB',type:'RMJB',row:r,slot:0});
       list.push({id:u+'-R'+r+'-EXPTANK',type:'EXPTANK',row:r,slot:0});
       list.push({id:u+'-R'+r+'-LEAK',type:'LEAK',row:r,slot:0});
       list.push({id:u+'-R'+r+'-PPS3',type:'PPS3',row:r,slot:0});
     }
-    // shared-per-unit: 2 LCMPs + 1 Catcher IRHX
+    if(layout){
+      // custom per-ROMP layout
+      layout.rows.forEach((rowCfg,i)=>{
+        const r=i+1;
+        if(rowCfg.kind==='network'){
+          list.push({id:u+'-R'+r+'-NET',type:'NET',row:r,slot:0});  // network row marker (not LC)
+        } else { // irhx row
+          irhxRow(r);
+          if(rowCfg.catcher==='PU') list.push({id:u+'-R'+r+'-CATPU',type:'CAT_PU',row:r,slot:0});
+          if(rowCfg.catcher==='FCU') list.push({id:u+'-R'+r+'-CATFCU',type:'CAT_FCU',row:r,slot:0});
+        }
+      });
+      // custom ROMPs do NOT get the shared LCMP/standalone CATCHER block (catcher is embedded)
+      // but still track the 2 LCMPs (monitoring) unless it's a network-only ROMP
+      const anyIrhx = layout.rows.some(rc=>rc.kind==='irhx');
+      if(anyIrhx){
+        list.push({id:u+'-LCMP1',type:'LCMP',row:0,slot:0});
+        list.push({id:u+'-LCMP2',type:'LCMP',row:0,slot:0});
+      }
+      return list;
+    }
+    // ---- standard uniform layout (ROMPs 3-12 and any unmapped unit) ----
+    const cfg=unitConfig(u);
+    for(let r=1;r<=cfg.rows;r++) irhxRow(r);
     list.push({id:u+'-LCMP1',type:'LCMP',row:0,slot:0});
     list.push({id:u+'-LCMP2',type:'LCMP',row:0,slot:0});
     list.push({id:u+'-CATCHER1',type:'CATCHER',row:0,slot:0});
@@ -525,13 +572,22 @@
   }
 
   Hall.prototype._build=function(){
-    const cfg=unitConfig(this.unitKey), host=this.stage; host.innerHTML='';
+    const host=this.stage; host.innerHTML='';
+    const U=this.unitKey, layout=rompLayout(U);
+    // Determine row list: custom ROMP layout, or standard uniform rows
+    let rowKinds;
+    if(layout){ rowKinds = layout.rows.map(rc=> rc.kind==='network' ? {net:true} : {net:false, catcher:rc.catcher||null}); }
+    else { const cfg=unitConfig(U); rowKinds=[]; for(let i=0;i<cfg.rows;i++) rowKinds.push({net:false,catcher:null}); }
+    const nRows=rowKinds.length;
+    const hasLC = rowKinds.some(rk=>!rk.net);
+    const showInfra = !layout ? true : false; // custom ROMPs embed catcher; no standalone infra block
+
     const PAD=50, ROWH=230, ROWGAP=30, LEFT=150;
     const eqBoxW=150, eqGap=10, eqGroupGap=64;
-    const W=1620;
-    const INFRA_H=120, INFRA_GAP=34;            // top infrastructure strip (LCMPs + Catcher)
-    const topRows = PAD + INFRA_H + INFRA_GAP;  // where Row 1 starts
-    const H = topRows + cfg.rows*ROWH + (cfg.rows-1)*ROWGAP + PAD;
+    const W=1700;
+    const INFRA_H=120, INFRA_GAP=34;
+    const topRows = PAD + (showInfra ? INFRA_H+INFRA_GAP : 0);
+    const H = topRows + nRows*ROWH + (nRows-1)*ROWGAP + PAD;
     const svg=el('svg',{viewBox:'0 0 '+W+' '+H,width:'100%',height:'auto',preserveAspectRatio:'xMidYMid meet',style:'display:block;min-height:100%'},host);
     this.svg=svg;
 
@@ -543,14 +599,14 @@
     const xs=[]; let x=LEFT;
     for(let i=0;i<5;i++){ xs.push(x); x += eqBoxW + (i===2 ? eqGroupGap : eqGap); }
     const rowRight = xs[4]+eqBoxW;
-    const sfnColX = rowRight + 390;
+    const sfnColX = rowRight + 470;
 
-    // ---- HALL INFRASTRUCTURE STRIP (shared per unit): 2 LCMPs + Catcher IRHX ----
-    this._buildInfra(svg, PAD, INFRA_H, W);
+    if(showInfra) this._buildInfra(svg, PAD, INFRA_H, W);
 
-    for(let r=1;r<=cfg.rows;r++){
-      const y0 = topRows + (r-1)*(ROWH+ROWGAP);
-      this._buildRow(svg, r, y0, ROWH, xs, eqBoxW, sfnColX, rowRight);
+    for(let i=0;i<nRows;i++){
+      const r=i+1, y0 = topRows + i*(ROWH+ROWGAP);
+      if(rowKinds[i].net) this._buildNetworkRow(svg, r, y0, ROWH, sfnColX, rowRight);
+      else this._buildRow(svg, r, y0, ROWH, xs, eqBoxW, sfnColX, rowRight, rowKinds[i].catcher);
     }
 
     const self=this;
@@ -559,6 +615,17 @@
       if(g){ const id=g.getAttribute('data-id'); const m=self.nodes[id];
         self.onRequestToggle(id, m?m.type:'', m?m.present:false); }
     });
+  };
+
+  // Network-only row: a wide labeled band, non-interactive (no LC equipment to track)
+  Hall.prototype._buildNetworkRow=function(svg,r,y0,ROWH,sfnColX,rowRight){
+    el('rect',{x:24,y:y0,width:sfnColX+150+30-24,height:ROWH,rx:16,fill:'rgba(30,41,59,0.35)',stroke:'rgba(100,116,139,0.35)'},svg);
+    const rl=el('text',{x:34,y:y0+26,fill:'#94a3b8','font-family':'Consolas,monospace','font-size':20,'font-weight':'700','letter-spacing':'2'},svg);
+    rl.textContent='ROW '+r;
+    const mid=el('text',{x:(24+sfnColX+156)/2,y:y0+ROWH/2+6,'text-anchor':'middle',fill:'#64748b','font-family':'Consolas,monospace','font-size':24,'font-weight':'700','letter-spacing':'3'},svg);
+    mid.textContent='NETWORK RACKS';
+    const sub=el('text',{x:(24+sfnColX+156)/2,y:y0+ROWH/2+34,'text-anchor':'middle',fill:'#475569','font-family':'Consolas,monospace','font-size':12,'letter-spacing':'2'},svg);
+    sub.textContent='No liquid cooling equipment';
   };
 
   // Shared-per-unit infrastructure: 2 LCMPs + Catcher IRHX in a labeled strip
@@ -574,7 +641,7 @@
     this._box(svg, U+'-LCMP2','LCMP', bx, by, bw, bh); bx+=bw+gap;
   };
 
-  Hall.prototype._buildRow=function(svg,r,y0,ROWH,xs,bw,sfnColX,rowRight){
+  Hall.prototype._buildRow=function(svg,r,y0,ROWH,xs,bw,sfnColX,rowRight,catcher){
     const U=this.unitKey;
     const midY=y0+ROWH*0.46;
     // row frame
@@ -582,14 +649,22 @@
     // row label
     const rl=el('text',{x:34,y:y0+26,fill:'#5eead4','font-family':'Consolas,monospace','font-size':20,'font-weight':'700','letter-spacing':'2'},svg);
     rl.textContent='ROW '+r;
+    if(catcher){
+      el('rect',{x:120,y:y0+11,width:150,height:22,rx:7,fill:'rgba(251,191,36,0.14)',stroke:'rgba(251,191,36,0.6)'},svg);
+      const cb=el('text',{x:195,y:y0+26,'text-anchor':'middle',fill:'#fbbf24','font-family':'Consolas,monospace','font-size':10,'font-weight':'700','letter-spacing':'1'},svg);
+      cb.textContent='+ CATCHER '+catcher;
+    }
 
     // ---- per-row SUPPORT equipment: RMJB, 3PPS, Expansion Tank, Leak Detection ----
     (()=>{
       const supX = rowRight + 16, supY = y0+30, sw=78, sh=ROWH-150, sgap=8;
       const lbl=el('text',{x:supX, y:supY-8, fill:'#7fa6bd','font-family':'Consolas,monospace','font-size':10,'letter-spacing':'1'},svg);
       lbl.textContent='SUPPORT';
-      const items=[['RMJB','RMJB'],['PPS3','3PPS'],['EXPTANK','EXP TANK'],['LEAK','LEAK DET']];
-      items.forEach((it,i)=>{ this._box(svg, U+'-R'+r+'-'+it[0], it[0], supX+i*(sw+sgap), supY, sw, sh); });
+      let items=[['RMJB','RMJB'],['PPS3','3PPS'],['EXPTANK','EXP TANK'],['LEAK','LEAK DET']];
+      // embedded catcher piece for this row (ROMP-specific): CAT_PU or CAT_FCU
+      if(catcher==='PU') items.push(['CATPU','CAT_PU']);
+      else if(catcher==='FCU') items.push(['CATFCU','CAT_FCU']);
+      items.forEach((it,i)=>{ this._box(svg, U+'-R'+r+'-'+it[0], it[1], supX+i*(sw+sgap), supY, sw, sh); });
     })();
 
     // ---- SFN: ONE clickable piping network for the whole row (toggles together) ----
@@ -725,7 +800,7 @@
   function importState(j){try{saveState(JSON.parse(j));return true;}catch(e){return false;}}
   function wipeState(){try{localStorage.removeItem(_lcKey());}catch(e){}}
 
-  global.SBN207Hall={Hall:Hall,unitConfig:unitConfig,rowsForUnit:rowsForUnit,FIVE_ROW_UNITS:FIVE_ROW_UNITS,TYPES:TYPES,buildManifest:buildManifest,exportState:exportState,importState:importState,loadState:loadState,saveState:saveState,wipeState:wipeState};
+  global.SBN207Hall={Hall:Hall,unitConfig:unitConfig,rowsForUnit:rowsForUnit,FIVE_ROW_UNITS:FIVE_ROW_UNITS,rompNum:rompNum,rompLayout:rompLayout,TYPES:TYPES,buildManifest:buildManifest,exportState:exportState,importState:importState,loadState:loadState,saveState:saveState,wipeState:wipeState};
 })(window);
 </script>
 </head>
@@ -746,7 +821,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v34 · sw sandbox-skip</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v35 · ROMP layouts</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1161,10 +1236,14 @@
       document.body.classList.remove('infra-mode');
     }
     const cfg = window.SBN207Hall.unitConfig(id);
-    document.getElementById('ov-badge').textContent = id;
-    document.getElementById('ov-name').textContent = 'Unit ' + id + ' \u2014 Liquid Cooling';
-    document.getElementById('ov-sub').textContent = cfg.hall + ' \u00b7 ' + cfg.rows + ' IRHX Rows \u00b7 Equipment Inventory';
-    const rb=document.getElementById('rows-badge'); if(rb) rb.textContent='ROWS: '+cfg.rows+((id==='D1A1'||id==='D2A1')?'  (5-row unit)':'');
+    const rn = window.SBN207Hall.rompNum ? window.SBN207Hall.rompNum(id) : null;
+    const lay = window.SBN207Hall.rompLayout ? window.SBN207Hall.rompLayout(id) : null;
+    const nRows = lay ? lay.rows.length : cfg.rows;
+    const hasLC = lay ? lay.rows.some(function(x){return x.kind==='irhx';}) : true;
+    document.getElementById('ov-badge').textContent = rn ? ('ROMP '+rn) : id;
+    document.getElementById('ov-name').textContent = (rn?('ROMP '+rn):'Unit '+id) + ' \u2014 ' + (hasLC ? 'Liquid Cooling' : 'Network Racks');
+    document.getElementById('ov-sub').textContent = cfg.hall + ' \u00b7 ' + id + ' \u00b7 ' + nRows + ' Rows' + (hasLC ? '' : ' \u00b7 No LC equipment');
+    const rb=document.getElementById('rows-badge'); if(rb) rb.textContent='ROWS: '+nRows;
     overlay.classList.add('open'); overlay.setAttribute('aria-hidden','false');
 
     if(hall){ hall.dispose(); hall = null; }
