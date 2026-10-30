@@ -1,5 +1,5 @@
 /* SBN207 Liquid Cooling Tracker — service worker (offline cache) */
-const CACHE = 'sbn207-lc-v10';
+const CACHE = 'sbn207-lc-v11';
 const ASSETS = [
   './',
   './index.html',
