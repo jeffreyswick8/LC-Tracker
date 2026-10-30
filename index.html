@@ -484,7 +484,7 @@
     // ROMP 2 (D2A1): 3 network rows + 4 IRHX rows; catcher shown as a SEPARATE top block
     'D2A1':{ rows:[
       {kind:'network'},{kind:'network'},{kind:'network'},
-      {kind:'irhx'},{kind:'irhx'},{kind:'irhx'},{kind:'irhx'}
+      {kind:'irhx'},{kind:'irhx'},{kind:'irhx'},{kind:'irhx'},{kind:'irhx'},{kind:'irhx'}
     ], catcherBlock:true },
     // ROMP 3 (D1A2): 8 IRHX rows + SEPARATE catcher top block
     'D1A2':{ rows:[
@@ -563,7 +563,6 @@
     for(let r=1;r<=cfg.rows;r++) irhxRow(r);
     list.push({id:u+'-LCMP1',type:'LCMP',row:0,slot:0});
     list.push({id:u+'-LCMP2',type:'LCMP',row:0,slot:0});
-    list.push({id:u+'-CATCHER1',type:'CATCHER',row:0,slot:0});
     return list;
   }
 
@@ -653,7 +652,6 @@
     hd.textContent='HALL INFRASTRUCTURE · SHARED';
     const by=y0+40, bh=h-58, bw=230, gap=26;
     let bx=40;
-    this._box(svg, U+'-CATCHER1','CATCHER', bx, by, bw+40, bh); bx+=bw+40+gap;
     this._box(svg, U+'-LCMP1','LCMP', bx, by, bw, bh); bx+=bw+gap;
     this._box(svg, U+'-LCMP2','LCMP', bx, by, bw, bh); bx+=bw+gap;
   };
@@ -843,7 +841,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v40 · 8rows+catcher block</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v41 · catcher cleanup</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1522,4 +1520,4 @@
 </script>
 </body>
 </html>
-<!-- deploy-marker:v40-110132 -->
+<!-- deploy-marker:v41-110831 -->
