@@ -734,7 +734,7 @@
       </div>
       <div class="brand-txt">
         <h1>SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v29 · lineups</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v30 · lineup fix</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -915,11 +915,18 @@
   // Exception D2E1: Alpha MSDB 4, 5, 6 only (legacy — keeps the 6th MSDB).
   const MSDB_ICON='\u26a1';
   function eroomGroups(code){
-    if(code==='D2E1'){
-      return { Alpha:[
-        {key:'A-MSDB4',name:'MSDB 4'},{key:'A-MSDB5',name:'MSDB 5'},{key:'A-MSDB6',name:'MSDB 6'}
-      ]};
+    // D1E1: Alpha MSDB 4 & 5 are expected (not tracked) -> Bravo only
+    if(code==='D1E1'){
+      return { Bravo:[ {key:'B-MSDB4',name:'MSDB 4'}, {key:'B-MSDB5',name:'MSDB 5'} ] };
     }
+    // D2E1: Alpha MSDB 4, 5, 6 + Bravo MSDB 4, 5
+    if(code==='D2E1'){
+      return {
+        Alpha:[ {key:'A-MSDB4',name:'MSDB 4'}, {key:'A-MSDB5',name:'MSDB 5'}, {key:'A-MSDB6',name:'MSDB 6'} ],
+        Bravo:[ {key:'B-MSDB4',name:'MSDB 4'}, {key:'B-MSDB5',name:'MSDB 5'} ],
+      };
+    }
+    // all other rooms: Alpha MSDB 4 & 5 + Bravo MSDB 4 & 5
     return {
       Alpha:[ {key:'A-MSDB4',name:'MSDB 4'}, {key:'A-MSDB5',name:'MSDB 5'} ],
       Bravo:[ {key:'B-MSDB4',name:'MSDB 4'}, {key:'B-MSDB5',name:'MSDB 5'} ],
@@ -996,10 +1003,10 @@
     const noteEl=document.getElementById('er-note');
     if(code==='D1E1'){
       noteEl.style.display='block';
-      noteEl.innerHTML='<strong>Note:</strong> MSDB 4 and MSDB 5 are on the <strong>Bravo</strong> lineup.';
+      noteEl.innerHTML='<strong>Note:</strong> Alpha-lineup MSDB 4 and MSDB 5 are expected (not tracked here). Only the <strong>Bravo</strong> lineup is verified.';
     } else if(code==='D2E1'){
       noteEl.style.display='block';
-      noteEl.innerHTML='<strong>Note:</strong> Only the <strong>Alpha lineup</strong> — includes the 6th MSDB (MSDB 6).';
+      noteEl.innerHTML='<strong>Note:</strong> <strong>Alpha</strong> lineup includes a 6th MSDB (MSDB 6); <strong>Bravo</strong> lineup has MSDB 4 and MSDB 5.';
     } else {
       noteEl.style.display='none';
     }
