@@ -870,7 +870,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v52 · live-host gate</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v54 · cache refresh</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1544,8 +1544,10 @@
       } catch(e) { /* no-op */ }
     });
   })();
-  // global error surfacing (per tablet best practice) — non-intrusive console log
-  window.onerror = function(msg,src,ln,col,err){ console.error('App error:', msg, 'at', src+':'+ln); };
+  // global error surfacing — ONLY on the live site (avoids surfacing harmless sandbox/preview errors)
+  if(location.hostname==='jeffreyswick8.github.io'){
+    window.onerror = function(msg,src,ln,col,err){ console.error('App error:', msg, 'at', src+':'+ln); };
+  }
 </script>
     <!-- confirmation modal -->
     <div class="lc-modal" id="lc-modal" aria-hidden="true">
@@ -1648,4 +1650,4 @@
 </script>
 </body>
 </html>
-<!-- deploy-marker:v52-081655 -->
+<!-- deploy-marker:v54-cacherefresh -->
