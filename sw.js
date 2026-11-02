@@ -1,5 +1,5 @@
 /* SBN207 Liquid Cooling Tracker — service worker (offline cache) */
-const CACHE = 'sbn207-lc-v16';
+const CACHE = 'sbn207-lc-v18';
 const ASSETS = [
   './',
   './index.html',
@@ -22,6 +22,8 @@ self.addEventListener('activate', (e) => {
 // cache-first for app shell; network fallback
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Only handle same-origin requests; let Firebase/CDN traffic pass straight through.
+  try { if (new URL(e.request.url).origin !== self.location.origin) return; } catch (err) { return; }
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request).then((resp) => {
       // optionally cache new same-origin GETs

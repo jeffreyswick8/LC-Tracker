@@ -518,7 +518,8 @@
   function _bldg(){ return (global.LC_BUILDING||'207'); }
   function _lcKey(){ return 'sbn'+_bldg()+'_lc_inventory_v2'; }
   function loadState(){try{return JSON.parse(localStorage.getItem(_lcKey()))||{};}catch(e){return{};}}
-  function saveState(s){try{localStorage.setItem(_lcKey(),JSON.stringify(s));}catch(e){}}
+  function saveState(s){try{localStorage.setItem(_lcKey(),JSON.stringify(s));}catch(e){}
+    try{ if(global.SBNSync&&global.SBNSync.enabled) global.SBNSync.pushKey(_lcKey()); }catch(e){} }
 
   function buildManifest(u){
     const list=[];
@@ -838,6 +839,18 @@
   global.SBN207Hall={Hall:Hall,unitConfig:unitConfig,rowsForUnit:rowsForUnit,FIVE_ROW_UNITS:FIVE_ROW_UNITS,rompNum:rompNum,rompLayout:rompLayout,TYPES:TYPES,buildManifest:buildManifest,exportState:exportState,importState:importState,loadState:loadState,saveState:saveState,wipeState:wipeState};
 })(window);
 </script>
+<script>
+  /* Load Firebase SDK only on a real http(s) origin. Sandbox preview (origin 'null')
+     blocks it and misreports a phantom line error, so we skip it there. */
+  (function(){
+    var sandboxed=false; try{ if(window.origin==='null'||window.origin===null) sandboxed=true; }catch(e){ sandboxed=true; }
+    var real = (location.protocol==='https:'||location.protocol==='http:');
+    if(sandboxed || !real) return;
+    ['https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
+     'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js'
+    ].forEach(function(src){ document.write('<scr'+'ipt src="'+src+'"><\/scr'+'ipt>'); });
+  })();
+</script>
 </head>
 <body>
 <div class="app">
@@ -856,7 +869,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v44 · modal fix</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v46 · fb guard</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -1044,7 +1057,8 @@
   }
   function erKey(){ return 'sbn'+(window.LC_BUILDING||'207')+'_eroom_v1'; }
   function erLoad(){ try{return JSON.parse(localStorage.getItem(erKey()))||{};}catch(e){return{};} }
-  function erSave(s){ try{localStorage.setItem(erKey(),JSON.stringify(s));}catch(e){} }
+  function erSave(s){ try{localStorage.setItem(erKey(),JSON.stringify(s));}catch(e){}
+    try{ if(window.SBNSync&&window.SBNSync.enabled) window.SBNSync.pushKey(erKey()); }catch(e){} }
 
   const dhOverlay = document.getElementById('dh-overlay');
   const erOverlay = document.getElementById('er-overlay');
@@ -1225,6 +1239,21 @@
     closeModal();
   });
   modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
+
+  // Called by the sync layer when remote data changes — re-render whatever's open.
+  window.SBN_refreshView = function(){
+    try{
+      // if a unit floor plan is open, rebuild it
+      if(overlay && overlay.classList.contains('open') && hall && hall.unitKey){
+        var k=hall.unitKey; hall.dispose(); hall=makeHall(k);
+      }
+      // if an electrical room is open, re-render it
+      if(erOverlay && erOverlay.classList.contains('open')){
+        var badge=document.getElementById('er-badge');
+        if(badge && badge.textContent) openEroom(badge.textContent);
+      }
+    }catch(e){}
+  };
 
   function makeHall(unitKey){
     return new window.SBN207Hall.Hall({
@@ -1533,6 +1562,82 @@
         </div>
       </div>
     </div>
+<script>
+/* ============================================================
+   SBN207 LC Tracker — Firebase cross-device sync (offline-first)
+   localStorage is source of truth; Firebase mirrors in background.
+   Incoming remote data only applies if newer (per-key timestamp).
+   ============================================================ */
+(function(){
+  'use strict';
+  var firebaseConfig = {
+    apiKey: "AIzaSyB3jcl9qvHm13VPB9HuDlGx9zA1Of27nK0",
+    authDomain: "sbn-lc-tracker.firebaseapp.com",
+    databaseURL: "https://sbn-lc-tracker-default-rtdb.firebaseio.com",
+    projectId: "sbn-lc-tracker",
+    storageBucket: "sbn-lc-tracker.firebasestorage.app",
+    messagingSenderId: "161101230940",
+    appId: "1:161101230940:web:ddc78912584f61e7024799"
+  };
+
+  // Skip in sandbox/preview or if SDK unavailable; app still works via localStorage.
+  var sandboxed=false; try{ if(window.origin==='null'||window.origin===null) sandboxed=true; }catch(e){ sandboxed=true; }
+  if(sandboxed || typeof firebase==='undefined'){ window.SBNSync={enabled:false, pushKey:function(){}}; return; }
+
+  var db;
+  try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
+  catch(e){ window.SBNSync={enabled:false, push:function(){}}; return; }
+
+  // storage keys we mirror (per building). We store {data:{...}, updatedAt:ms} at /lc/<store>
+  var STORES = {
+    'lc207':'sbn207_lc_inventory_v2',
+    'lc202':'sbn202_lc_inventory_v2',
+    'er207':'sbn207_eroom_v1',
+    'er202':'sbn202_eroom_v1'
+  };
+  function lsGet(k){ try{return JSON.parse(localStorage.getItem(k))||{};}catch(e){return {};} }
+  function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+
+  var applyingRemote=false;
+
+  // Push a local store up to Firebase (debounced per store)
+  var pushTimers={};
+  function push(node, lsKey){
+    if(applyingRemote) return;
+    clearTimeout(pushTimers[node]);
+    pushTimers[node]=setTimeout(function(){
+      try{ db.ref('lc/'+node).set({ data: lsGet(lsKey), updatedAt: Date.now() }); }catch(e){}
+    }, 400);
+  }
+  // Map an lsKey back to its node
+  function nodeForKey(lsKey){
+    for(var n in STORES){ if(STORES[n]===lsKey) return n; }
+    return null;
+  }
+
+  // Listen for remote changes on every store; apply if newer than local marker
+  function markKey(node){ return '__sync_ts_'+node; }
+  Object.keys(STORES).forEach(function(node){
+    var lsKey=STORES[node];
+    db.ref('lc/'+node).on('value', function(snap){
+      var val=snap.val(); if(!val||!val.data) return;
+      var localTs=parseInt(localStorage.getItem(markKey(node))||'0',10);
+      if(val.updatedAt && val.updatedAt<=localTs) return;  // not newer, ignore
+      applyingRemote=true;
+      lsSet(lsKey, val.data);
+      localStorage.setItem(markKey(node), String(val.updatedAt||Date.now()));
+      applyingRemote=false;
+      // re-render whatever's open so the other person's change shows live
+      try{ if(window.SBN_refreshView) window.SBN_refreshView(); }catch(e){}
+    });
+  });
+
+  window.SBNSync={
+    enabled:true,
+    pushKey:function(lsKey){ var n=nodeForKey(lsKey); if(n) push(n, lsKey); },
+  };
+})();
+</script>
 </body>
 </html>
-<!-- deploy-marker:v44-074841 -->
+<!-- deploy-marker:v46-080453 -->
