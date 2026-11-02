@@ -572,7 +572,13 @@
   function _lcKey(){ return 'sbn'+_bldg()+'_lc_inventory_v2'; }
   function loadState(){try{return JSON.parse(localStorage.getItem(_lcKey()))||{};}catch(e){return{};}}
   function saveState(s){try{localStorage.setItem(_lcKey(),JSON.stringify(s));}catch(e){}
-    try{ if(global.SBNSync&&typeof global.SBNSync.pushKey==='function') global.SBNSync.pushKey(_lcKey()); }catch(e){} }
+    try{
+      var _sk=_lcKey();
+      var _diag='save '+_sk+' | SBNSync='+(typeof global.SBNSync)+' enabled='+(global.SBNSync?global.SBNSync.enabled:'n/a');
+      if(global.fbStatusExt) global.fbStatusExt(_diag,'#1e3a8a');
+      if(global.SBNSync&&typeof global.SBNSync.pushKey==='function'){ global.SBNSync.pushKey(_sk); }
+      else if(global.fbStatusExt){ global.fbStatusExt('NO pushKey! ('+_sk+')','#7f1d1d'); }
+    }catch(e){ if(global.fbStatusExt) global.fbStatusExt('saveState err: '+(e&&e.message?e.message:e),'#7f1d1d'); } }
 
   function buildManifest(u){
     const list=[];
@@ -941,7 +947,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v61 · big sync bar</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v62 · save-path diag</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -949,7 +955,7 @@
       <div class="live"><span class="dot"></span>System Online</div>
     </div>
   </div>
-  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v61</div>
+  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v62</div>
 
   <div class="divider"></div>
 
@@ -1684,6 +1690,7 @@
     }catch(_){}
   }
   fbStatus('init...', '#555');
+  try{ window.fbStatusExt = fbStatus; }catch(e){}
 
   var db;
   try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
@@ -1769,4 +1776,4 @@
 </script>
 </body>
 </html>
-<!-- deploy-marker:v61-syncbar-093136 -->
+<!-- deploy-marker:v62-savediag-095122 -->
