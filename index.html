@@ -855,6 +855,24 @@
 </head>
 <body>
 <div class="app">
+    <!-- confirmation modal -->
+    <div class="lc-modal" id="lc-modal" aria-hidden="true">
+      <div class="lc-modal-card">
+        <div class="lc-modal-q" id="lc-modal-q">Is this equipment present in this location?</div>
+        <div class="lc-modal-id" id="lc-modal-id"></div>
+        <div class="lc-modal-row">
+          <button class="lc-ans no" id="lc-ans-no" type="button">No — Missing</button>
+          <button class="lc-ans yes" id="lc-ans-yes" type="button">Yes — Present</button>
+        </div>
+        <div class="lc-modal-confirm" id="lc-modal-confirm" style="display:none;">
+          <div class="lc-confirm-txt" id="lc-confirm-txt"></div>
+          <div class="lc-modal-row">
+            <button class="lc-ans cancel" id="lc-cancel" type="button">Cancel</button>
+            <button class="lc-ans confirm" id="lc-confirm-ok" type="button">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
   <!-- TITLE FIRST (streaming-friendly) -->
   <div class="topbar">
@@ -870,7 +888,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v55 · diagnostics</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v56 · modal-order fix</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -878,7 +896,7 @@
       <div class="live"><span class="dot"></span>System Online</div>
     </div>
   </div>
-  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v55</div>
+  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v56</div>
 
   <div class="divider"></div>
 
@@ -1568,24 +1586,6 @@
     })();
   }
 </script>
-    <!-- confirmation modal -->
-    <div class="lc-modal" id="lc-modal" aria-hidden="true">
-      <div class="lc-modal-card">
-        <div class="lc-modal-q" id="lc-modal-q">Is this equipment present in this location?</div>
-        <div class="lc-modal-id" id="lc-modal-id"></div>
-        <div class="lc-modal-row">
-          <button class="lc-ans no" id="lc-ans-no" type="button">No — Missing</button>
-          <button class="lc-ans yes" id="lc-ans-yes" type="button">Yes — Present</button>
-        </div>
-        <div class="lc-modal-confirm" id="lc-modal-confirm" style="display:none;">
-          <div class="lc-confirm-txt" id="lc-confirm-txt"></div>
-          <div class="lc-modal-row">
-            <button class="lc-ans cancel" id="lc-cancel" type="button">Cancel</button>
-            <button class="lc-ans confirm" id="lc-confirm-ok" type="button">Confirm</button>
-          </div>
-        </div>
-      </div>
-    </div>
 <script>
 /* ============================================================
    SBN207 LC Tracker — Firebase cross-device sync (offline-first)
@@ -1669,4 +1669,4 @@
 </script>
 </body>
 </html>
-<!-- deploy-marker:v55-diagnostics -->
+<!-- deploy-marker:v56-modalfix -->
