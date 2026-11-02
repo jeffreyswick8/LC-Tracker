@@ -888,7 +888,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v56 · modal-order fix</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v57 · firebase diag</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -896,7 +896,7 @@
       <div class="live"><span class="dot"></span>System Online</div>
     </div>
   </div>
-  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v56</div>
+  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v57</div>
 
   <div class="divider"></div>
 
@@ -1613,9 +1613,35 @@
   var liveHost = (location.hostname==='jeffreyswick8.github.io');
   if(sandboxed || inIframe || !liveHost || typeof firebase==='undefined' || !firebase || !firebase.initializeApp){ return; }
 
+  // ---- visible Firebase status indicator (helps diagnose sync on real devices) ----
+  function fbStatus(txt, color){
+    try{
+      var el=document.getElementById('fb-status');
+      if(!el){
+        el=document.createElement('div'); el.id='fb-status';
+        el.style.cssText='position:fixed;top:34px;right:8px;z-index:99998;font:700 11px/1 Consolas,monospace;'
+          +'padding:5px 8px;border-radius:6px;border:1px solid #334;color:#fff;max-width:60vw;'
+          +'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        el.addEventListener('click',function(){ el.style.whiteSpace = el.style.whiteSpace==='normal'?'nowrap':'normal'; });
+        document.body.appendChild(el);
+      }
+      el.textContent='FB: '+txt;
+      el.style.background=color||'#334';
+    }catch(_){}
+  }
+  fbStatus('init...', '#555');
+
   var db;
   try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
-  catch(e){ return; }   // keep the safe no-op stub
+  catch(e){ fbStatus('init FAILED: '+(e&&e.message?e.message:e), '#7f1d1d'); return; }   // keep the safe no-op stub
+
+  // Report live connection state from the special /.info/connected node
+  try{
+    firebase.database().ref('.info/connected').on('value', function(s){
+      if(s.val()===true) fbStatus('connected', '#065f46');
+      else fbStatus('offline (connecting...)', '#92400e');
+    });
+  }catch(e){ fbStatus('conn-watch err: '+(e&&e.message?e.message:e), '#7f1d1d'); }
 
   // storage keys we mirror (per building). We store {data:{...}, updatedAt:ms} at /lc/<store>
   var STORES = {
@@ -1635,7 +1661,10 @@
     if(applyingRemote) return;
     clearTimeout(pushTimers[node]);
     pushTimers[node]=setTimeout(function(){
-      try{ db.ref('lc/'+node).set({ data: lsGet(lsKey), updatedAt: Date.now() }); }catch(e){}
+      try{ db.ref('lc/'+node).set({ data: lsGet(lsKey), updatedAt: Date.now() })
+             .then(function(){ fbStatus('pushed '+node+' @'+new Date().toLocaleTimeString(), '#065f46'); })
+             .catch(function(err){ fbStatus('WRITE DENIED '+node+': '+(err&&err.message?err.message:err), '#7f1d1d'); });
+      }catch(e){ fbStatus('push err: '+(e&&e.message?e.message:e), '#7f1d1d'); }
     }, 400);
   }
   // Map an lsKey back to its node
@@ -1658,7 +1687,7 @@
       applyingRemote=false;
       // re-render whatever's open so the other person's change shows live
       try{ if(window.SBN_refreshView) window.SBN_refreshView(); }catch(e){}
-    });
+    }, function(err){ fbStatus('READ DENIED '+node+': '+(err&&err.message?err.message:err), '#7f1d1d'); });
   });
 
   window.SBNSync={
@@ -1669,4 +1698,4 @@
 </script>
 </body>
 </html>
-<!-- deploy-marker:v56-084629 -->
+<!-- deploy-marker:v57-fbdiag-085146 -->
