@@ -941,7 +941,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v59 · phone friendly</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v60 · sync fix</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -949,7 +949,7 @@
       <div class="live"><span class="dot"></span>System Online</div>
     </div>
   </div>
-  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v59</div>
+  <div id="ver-chip" style="position:fixed;top:6px;right:8px;z-index:99998;background:#0e7490;color:#e6f6fb;font:700 12px/1 Consolas,monospace;padding:6px 9px;border-radius:7px;border:1px solid #5eead4;box-shadow:0 0 10px rgba(34,211,238,.4);">v60</div>
 
   <div class="divider"></div>
 
@@ -1710,11 +1710,16 @@
 
   // Push a local store up to Firebase (debounced per store)
   var pushTimers={};
+  var lastContent={};              // node -> JSON string we last saw (pushed or applied); blocks self-echo loops
+  var lastTs=0;                    // monotonic clock: never emit a timestamp that goes backwards
+  function nextTs(){ lastTs = Math.max(Date.now(), lastTs+1); return lastTs; }
   function push(node, lsKey){
     if(applyingRemote) return;
     clearTimeout(pushTimers[node]);
     pushTimers[node]=setTimeout(function(){
-      try{ db.ref('lc/'+node).set({ data: lsGet(lsKey), updatedAt: Date.now() })
+      var payload = lsGet(lsKey);
+      lastContent[node] = JSON.stringify(payload);   // remember our own write so the echo is ignored
+      try{ db.ref('lc/'+node).set({ data: payload, updatedAt: nextTs() })
              .then(function(){ fbStatus('pushed '+node+' @'+new Date().toLocaleTimeString(), '#065f46'); })
              .catch(function(err){ fbStatus('WRITE DENIED '+node+': '+(err&&err.message?err.message:err), '#7f1d1d'); });
       }catch(e){ fbStatus('push err: '+(e&&e.message?e.message:e), '#7f1d1d'); }
@@ -1726,23 +1731,31 @@
     return null;
   }
 
-  // Listen for remote changes on every store; apply if newer than local marker
-  function markKey(node){ return '__sync_ts_'+node; }
+  // Listen for remote changes on every store.
+  // CONTENT-BASED merge (immune to cross-device clock skew): apply whenever the remote
+  // data differs from what we currently hold locally. Our own echo is skipped because
+  // its content already matches lastContent[node] / localStorage.
   Object.keys(STORES).forEach(function(node){
     var lsKey=STORES[node];
     db.ref('lc/'+node).on('value', function(snap){
       var val=snap.val();
       if(!val||!val.data){ fbStatus('rx '+node+': empty', '#555'); return; }
-      var localTs=parseInt(localStorage.getItem(markKey(node))||'0',10);
-      if(val.updatedAt && val.updatedAt<=localTs){
-        fbStatus('rx '+node+': stale (skip)', '#92400e'); return;  // not newer, ignore
+      var incoming = JSON.stringify(val.data);
+      var current  = JSON.stringify(lsGet(lsKey));
+      if(incoming===current){                      // nothing new (our own echo, or already in sync)
+        lastContent[node]=incoming; return;
       }
+      if(incoming===lastContent[node]){            // this is exactly what we just pushed — ignore echo
+        return;
+      }
+      // Keep monotonic clock ahead of any timestamp we observe, so our next push always wins ties
+      if(val.updatedAt && val.updatedAt>lastTs){ lastTs=val.updatedAt; }
       applyingRemote=true;
       lsSet(lsKey, val.data);
-      localStorage.setItem(markKey(node), String(val.updatedAt||Date.now()));
+      lastContent[node]=incoming;
       applyingRemote=false;
       fbStatus('APPLIED '+node+' @'+new Date().toLocaleTimeString(), '#065f46');
-      // re-render whatever's open so the other person's change shows live
+      // re-render whatever's open so the other device's change shows live
       try{ if(window.SBN_refreshView) window.SBN_refreshView(); }catch(e){}
     }, function(err){ fbStatus('READ DENIED '+node+': '+(err&&err.message?err.message:err), '#7f1d1d'); });
   });
@@ -1755,4 +1768,4 @@
 </script>
 </body>
 </html>
-<!-- deploy-marker:v59-phone-091337 -->
+<!-- deploy-marker:v60-syncfix-092438 -->
