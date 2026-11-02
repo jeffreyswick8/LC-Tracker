@@ -1,5 +1,5 @@
-/* SBN207 Liquid Cooling Tracker — service worker (offline cache) */
-const CACHE = 'sbn207-lc-v62';
+/* SBN207 Liquid Cooling Tracker — service worker (NETWORK-FIRST) */
+const CACHE = 'sbn207-lc-v63';
 const ASSETS = [
   './',
   './index.html',
@@ -20,15 +20,21 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// cache-first for app shell; network fallback
+// NETWORK-FIRST for app shell: always try the network so fresh deploys land
+// immediately; fall back to cache only when offline. Updates the cache on every
+// successful fetch so the offline copy stays current for the data hall.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   // Only handle same-origin requests; let Firebase/CDN traffic pass straight through.
   try { if (new URL(e.request.url).origin !== self.location.origin) return; } catch (err) { return; }
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request).then((resp) => {
-      // optionally cache new same-origin GETs
+    fetch(e.request).then((resp) => {
+      // Fresh copy from network — update the cache, then serve it.
+      try {
+        const copy = resp.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+      } catch (err) {}
       return resp;
-    }).catch(() => cached))
+    }).catch(() => caches.match(e.request))   // offline: serve cached copy
   );
 });
