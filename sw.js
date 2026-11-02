@@ -1,11 +1,12 @@
 /* SBN207 Liquid Cooling Tracker — service worker (offline cache) */
-const CACHE = 'sbn207-lc-v18';
+const CACHE = 'sbn207-lc-v25';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './same_same.jpg'
 ];
 
 self.addEventListener('install', (e) => {
