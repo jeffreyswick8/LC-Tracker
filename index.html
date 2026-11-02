@@ -321,7 +321,7 @@
   .sel-toast.show{opacity:1;}
 
   /* ===================== CONFIRM MODAL ===================== */
-  .lc-modal{position:absolute;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+  .lc-modal{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;
     background:rgba(4,8,14,0.74);backdrop-filter:blur(3px);}
   .lc-modal.open{display:flex;}
   .lc-modal-card{
@@ -856,7 +856,7 @@
       </button>
       <div class="brand-txt">
         <h1 id="site-title">SBN207</h1>
-        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v43 · LCMP strip</span></div>
+        <div class="sub">Site Overview · Command · <span id="buildstamp">BUILD PWA v44 · modal fix</span></div>
       </div>
     </div>
     <div class="status-cluster">
@@ -945,24 +945,6 @@
       </div>
     </div>
 
-    <!-- confirmation modal -->
-    <div class="lc-modal" id="lc-modal" aria-hidden="true">
-      <div class="lc-modal-card">
-        <div class="lc-modal-q" id="lc-modal-q">Is this equipment present in this location?</div>
-        <div class="lc-modal-id" id="lc-modal-id"></div>
-        <div class="lc-modal-row">
-          <button class="lc-ans no" id="lc-ans-no" type="button">No — Missing</button>
-          <button class="lc-ans yes" id="lc-ans-yes" type="button">Yes — Present</button>
-        </div>
-        <div class="lc-modal-confirm" id="lc-modal-confirm" style="display:none;">
-          <div class="lc-confirm-txt" id="lc-confirm-txt"></div>
-          <div class="lc-modal-row">
-            <button class="lc-ans cancel" id="lc-cancel" type="button">Cancel</button>
-            <button class="lc-ans confirm" id="lc-confirm-ok" type="button">Confirm</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- ===================== DH LAYOUT OVERLAY (middle layer) ===================== -->
@@ -1533,6 +1515,24 @@
   // global error surfacing (per tablet best practice) — non-intrusive console log
   window.onerror = function(msg,src,ln,col,err){ console.error('App error:', msg, 'at', src+':'+ln); };
 </script>
+    <!-- confirmation modal -->
+    <div class="lc-modal" id="lc-modal" aria-hidden="true">
+      <div class="lc-modal-card">
+        <div class="lc-modal-q" id="lc-modal-q">Is this equipment present in this location?</div>
+        <div class="lc-modal-id" id="lc-modal-id"></div>
+        <div class="lc-modal-row">
+          <button class="lc-ans no" id="lc-ans-no" type="button">No — Missing</button>
+          <button class="lc-ans yes" id="lc-ans-yes" type="button">Yes — Present</button>
+        </div>
+        <div class="lc-modal-confirm" id="lc-modal-confirm" style="display:none;">
+          <div class="lc-confirm-txt" id="lc-confirm-txt"></div>
+          <div class="lc-modal-row">
+            <button class="lc-ans cancel" id="lc-cancel" type="button">Cancel</button>
+            <button class="lc-ans confirm" id="lc-confirm-ok" type="button">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
 </body>
 </html>
-<!-- deploy-marker:v43-062719 -->
+<!-- deploy-marker:v44-074841 -->
